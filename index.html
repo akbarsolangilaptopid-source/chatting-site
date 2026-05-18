@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AnonChat | Hybrid Dashboard</title>
+    <title>ARChat | Dashboard</title>
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
@@ -11,8 +11,8 @@
 
     <!-- Join Panel -->
     <div id="join-container" class="card">
-        <h2>Join <span class="brand-text">AnonChat</span></h2>
-        <p>No registration. Real-time anonymous chat with WebSocket synchronization.</p>
+        <h2>Join <span class="brand-text">ARChat</span></h2>
+        <p>No registration. Real-time anonymous chat with strangers.</p>
         <form id="join-form">
             <input type="text" id="username-input" placeholder="Pick a temporary nickname..." required autocomplete="off" maxlength="15">
             <button type="submit" class="btn-primary">Enter Dashboard</button>
@@ -27,7 +27,7 @@
         <aside class="sidebar">
             <button id="menu-toggle" class="menu-toggle">☰</button>
             <div class="sidebar-header">
-                <h3>AnonChat</h3>
+                <h3>ARChat</h3>
             </div>
 
             <!-- Profile Unit -->
@@ -35,7 +35,7 @@
                 <div class="avatar" id="user-avatar">?</div>
                 <div class="user-info">
                     <span class="user-name" id="display-username">Anonymous</span>
-                    <span class="user-status">Online Sync Active</span>
+                    <span class="user-status">Online</span>
                 </div>
             </div>
 
