@@ -25,8 +25,8 @@
         
         <!-- Navigation Sidebar -->
         <aside class="sidebar">
-            <div button id="menu-toggle" class="menu-toggle">☰</button>
-                <class="sidebar-header">
+            <button id="menu-toggle" class="menu-toggle">☰</button>
+            <div class="sidebar-header">
                 <h3>AnonChat</h3>
             </div>
 
@@ -42,15 +42,16 @@
             <!-- Room Navigation Matrix -->
             <div class="sidebar-menu">
                 <p class="menu-label">Channels & Groups</p>
-                <div class="room-item active" data-cha<span class="room-name"># Global Lobby</span>
+                <div class="room-item active" data-chat-type="group" data-target="global-lobby">
+                    <span class="room-name"># Global Lobby</span>
                     <span class="user-count" id="global-count">0</span>
                 </div>
 
                 <p class="menu-label" style="margin-top: 1.5rem;">Direct Messaging (1-on-1)</p>
                 <div class="room-item" data-chat-type="direct" data-target="private-peer">
-                    <span class="room-icon">🔒</span> <span class="room-name">Direct Peer Chat</span>
-                    <span class="user-count" id="peer-count">0</span>rget="private-peer">
-                    <span class="room-icon">🔒</span> Direct Peer Chat
+                    <span class="room-icon">🔒</span>
+                    <span class="room-name">Direct Peer Chat</span>
+                    <span class="user-count" id="peer-count">0</span>
                 </div>
             </div>
 

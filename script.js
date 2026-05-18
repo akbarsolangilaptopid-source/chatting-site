@@ -100,6 +100,7 @@ joinForm.addEventListener('submit', (e) => {
     currentUser = nickname;
     displayUsername.textContent = currentUser;
     userAvatar.textContent = currentUser.charAt(0).toUpperCase();
+    messagesStream.innerHTML = '';
 
     joinContainer.classList.add('hidden');
     chatDashboard.classList.remove('hidden');
@@ -161,6 +162,15 @@ leaveBtn.addEventListener('click', () => {
     chatDashboard.classList.add('hidden');
     joinContainer.classList.remove('hidden');
     usernameInput.value = '';
+    messagesStream.innerHTML = '';
+    activeChatTitle.textContent = '# Global Lobby';
+    activeChatDesc.textContent = 'Open group channel for all concurrent users';
+    displayUsername.textContent = 'Anonymous';
+    userAvatar.textContent = '?';
+    currentRoomType = 'group';
+    currentRoomTarget = 'global-lobby';
+    hideTypingIndicator();
+
     socket.disconnect();
     setTimeout(() => {
         socket.connect();

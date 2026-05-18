@@ -3,7 +3,6 @@ const http = require('http');
 const socketIO = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
@@ -20,37 +19,21 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
 
-// Data Storage Path
-const DATA_DIR = path.join(__dirname, 'data');
-if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR);
-}
+// Ephemeral Messages for active rooms only
+const messagesByRoom = {
+    'global-lobby': [],
+    'private-peer': []
+};
 
-const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
-const USERS_FILE = path.join(DATA_DIR, 'users.json');
-
-// Initialize data files if they don't exist
-if (!fs.existsSync(MESSAGES_FILE)) {
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify({}));
-}
-if (!fs.existsSync(USERS_FILE)) {
-    fs.writeFileSync(USERS_FILE, JSON.stringify([]));
-}
-
-// Helper Functions
 function loadMessages(room = 'global-lobby') {
-    const data = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8'));
-    return data[room] || [];
-}
-
-function saveMessages(room, messages) {
-    const data = JSON.parse(fs.readFileSync(MESSAGES_FILE, 'utf8'));
-    data[room] = messages;
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(data, null, 2));
+    return messagesByRoom[room] || [];
 }
 
 function addMessage(room, sender, text) {
-    const messages = loadMessages(room);
+    if (!messagesByRoom[room]) {
+        messagesByRoom[room] = [];
+    }
+
     const message = {
         id: uuidv4(),
         sender: sender,
@@ -58,9 +41,14 @@ function addMessage(room, sender, text) {
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         createdAt: new Date().toISOString()
     };
-    messages.push(message);
-    saveMessages(room, messages);
+    messagesByRoom[room].push(message);
     return message;
+}
+
+function clearMessages(room) {
+    if (messagesByRoom[room]) {
+        messagesByRoom[room] = [];
+    }
 }
 
 // Active Users Tracking
@@ -108,9 +96,8 @@ io.on('connection', (socket) => {
             joinedAt: new Date()
         };
 
-        // Send previous messages to the new user
-        const messages = loadMessages(room);
-        socket.emit('load_messages', messages);
+        // Do not expose previous conversation history to new users
+        socket.emit('load_messages', []);
 
         // Notify room that user joined
         io.to(room).emit('user_joined', {
@@ -145,7 +132,12 @@ io.on('connection', (socket) => {
             activeUsers[socket.id].room = newRoom;
         }
 
-        // Load messages for new room
+        // Clear messages for the room if no members remain
+        if (!io.sockets.adapter.rooms.get(oldRoom)?.size) {
+            clearMessages(oldRoom);
+        }
+
+        // Load messages for new room for current session
         const messages = loadMessages(newRoom);
         socket.emit('load_messages', messages);
 
@@ -176,10 +168,16 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         const user = activeUsers[socket.id];
         if (user) {
+            const roomSize = io.sockets.adapter.rooms.get(user.room)?.size || 0;
             io.to(user.room).emit('user_left', {
                 username: user.username,
-                userCount: io.sockets.adapter.rooms.get(user.room)?.size || 0
+                userCount: roomSize
             });
+
+            if (!roomSize) {
+                clearMessages(user.room);
+            }
+
             delete activeUsers[socket.id];
         }
         console.log(`User disconnected: ${socket.id}`);
