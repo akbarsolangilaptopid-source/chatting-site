@@ -54,6 +54,14 @@ function clearMessages(room) {
 // Active Users Tracking
 let activeUsers = {};
 
+function broadcastActiveUsers() {
+    io.emit('active_users', Object.values(activeUsers).map(user => ({
+        id: user.id,
+        username: user.username,
+        room: user.room
+    })));
+}
+
 // REST API Routes
 app.get('/api/messages/:room', (req, res) => {
     const { room } = req.params;
@@ -105,6 +113,7 @@ io.on('connection', (socket) => {
             userCount: io.sockets.adapter.rooms.get(room)?.size || 0
         });
 
+        broadcastActiveUsers();
         console.log(`${username} joined room: ${room}`);
     });
 
@@ -136,6 +145,8 @@ io.on('connection', (socket) => {
         if (!io.sockets.adapter.rooms.get(oldRoom)?.size) {
             clearMessages(oldRoom);
         }
+
+        broadcastActiveUsers();
 
         // Load messages for new room for current session
         const messages = loadMessages(newRoom);
@@ -179,6 +190,7 @@ io.on('connection', (socket) => {
             }
 
             delete activeUsers[socket.id];
+            broadcastActiveUsers();
         }
         console.log(`User disconnected: ${socket.id}`);
     });

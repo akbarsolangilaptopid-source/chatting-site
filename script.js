@@ -13,6 +13,8 @@ const displayUsername = document.getElementById('display-username');
 const userAvatar = document.getElementById('user-avatar');
 const leaveBtn = document.getElementById('leave-btn');
 const roomItems = document.querySelectorAll('.room-item');
+const peerListSection = document.getElementById('peer-list-section');
+const peerList = document.getElementById('peer-list');
 const activeChatTitle = document.getElementById('active-chat-title');
 const activeChatDesc = document.getElementById('active-chat-desc');
 const menuToggle = document.getElementById('menu-toggle');
@@ -26,6 +28,8 @@ const menuLabel = document.querySelector('.menu-label');
 let currentUser = "";
 let currentRoomType = "group";
 let currentRoomTarget = "global-lobby";
+let currentPeer = null;
+let pendingDirectMode = false;
 let typingTimeout;
 let isTyping = false;
 
@@ -78,6 +82,14 @@ socket.on('user_stop_typing', (data) => {
     hideTypingIndicator();
 });
 
+socket.on('active_users', (users) => {
+    const otherPeers = users.filter(user => user.username !== currentUser);
+    renderPeerList(otherPeers);
+    const globalCount = users.filter(user => user.room === 'global-lobby').length;
+    updateUserCount('global-lobby', globalCount);
+    updateUserCount('private-peer', otherPeers.length);
+});
+
 // --- Connection Status ---
 function updateConnectionStatus(connected) {
     if (connected) {
@@ -116,6 +128,11 @@ messageForm.addEventListener('submit', (e) => {
     const messageText = messageInput.value.trim();
     if (!messageText) return;
 
+    if (currentRoomType === 'direct' && pendingDirectMode && !currentPeer) {
+        appendSystemMessage('Please select a peer from the list before sending a private message.');
+        return;
+    }
+
     socket.emit('send_message', {
         room: currentRoomTarget,
         sender: currentUser,
@@ -133,24 +150,22 @@ roomItems.forEach(item => {
         roomItems.forEach(i => i.classList.remove('active'));
         item.classList.add('active');
 
-        const oldRoom = currentRoomTarget;
-        currentRoomType = item.getAttribute('data-chat-type');
-        currentRoomTarget = item.getAttribute('data-target');
+        const selectedType = item.getAttribute('data-chat-type');
+        const targetRoom = item.getAttribute('data-target');
+        currentRoomType = selectedType;
 
         if (currentRoomType === 'group') {
-            activeChatTitle.textContent = "# Global Lobby";
-            activeChatDesc.textContent = "Open group channel for all concurrent users";
+            pendingDirectMode = false;
+            currentPeer = null;
+            peerListSection.classList.add('hidden');
+            switchRoom(targetRoom, "# Global Lobby", "Open group channel for all concurrent users");
         } else {
+            pendingDirectMode = true;
             activeChatTitle.textContent = "🔒 Direct Peer Chat";
-            activeChatDesc.textContent = "1-on-1 private conversation";
+            activeChatDesc.textContent = "Choose one user to start a private conversation";
+            peerListSection.classList.remove('hidden');
+            appendSystemMessage('Select a peer from the list to begin direct chat.');
         }
-
-        // Switch room
-        socket.emit('switch_room', {
-            oldRoom: oldRoom,
-            newRoom: currentRoomTarget,
-            username: currentUser
-        });
 
         hideTypingIndicator();
         isTyping = false;
@@ -169,8 +184,9 @@ leaveBtn.addEventListener('click', () => {
     userAvatar.textContent = '?';
     currentRoomType = 'group';
     currentRoomTarget = 'global-lobby';
-    hideTypingIndicator();
-
+        currentPeer = null;
+        pendingDirectMode = false;
+        peerListSection.classList.add('hidden');
     socket.disconnect();
     setTimeout(() => {
         socket.connect();
@@ -202,6 +218,7 @@ messageInput.addEventListener('input', () => {
 if (menuToggle) {
     menuToggle.addEventListener('click', () => {
         sidebar.classList.toggle('active');
+        document.body.classList.toggle('sidebar-open', sidebar.classList.contains('active'));
     });
 
     // Close sidebar when room is selected on mobile
@@ -209,6 +226,7 @@ if (menuToggle) {
         item.addEventListener('click', () => {
             if (window.innerWidth <= 480) {
                 sidebar.classList.remove('active');
+                document.body.classList.remove('sidebar-open');
             }
         });
     });
@@ -240,6 +258,73 @@ function updateUserCount(room, count) {
     if (countElement) {
         countElement.textContent = count;
     }
+}
+
+function renderPeerList(users) {
+    peerList.innerHTML = '';
+    if (!users.length) {
+        const emptyState = document.createElement('div');
+        emptyState.className = 'peer-item empty';
+        emptyState.textContent = 'No peers are online right now.';
+        peerList.appendChild(emptyState);
+        return;
+    }
+
+    users.forEach(user => {
+        const peerItem = document.createElement('div');
+        peerItem.className = 'peer-item';
+        peerItem.textContent = user.username;
+        peerItem.addEventListener('click', () => {
+            startDirectChat(user.username);
+        });
+        peerList.appendChild(peerItem);
+    });
+}
+
+function startDirectChat(peerName) {
+    if (!currentUser || peerName === currentUser) return;
+
+    const oldRoom = currentRoomTarget;
+    const newRoom = createDirectRoomId(currentUser, peerName);
+    currentPeer = peerName;
+    pendingDirectMode = false;
+    currentRoomTarget = newRoom;
+    currentRoomType = 'direct';
+
+    activeChatTitle.textContent = `🔒 Chat with ${peerName}`;
+    activeChatDesc.textContent = 'Private one-on-one conversation';
+
+    socket.emit('switch_room', {
+        oldRoom: oldRoom,
+        newRoom: currentRoomTarget,
+        username: currentUser
+    });
+
+    appendSystemMessage(`Private chat started with ${peerName}.`);
+}
+
+function createDirectRoomId(userA, userB) {
+    const normalizedA = userA.trim().toLowerCase().replace(/\s+/g, '_');
+    const normalizedB = userB.trim().toLowerCase().replace(/\s+/g, '_');
+    return `direct-${[normalizedA, normalizedB].sort().join('-')}`;
+}
+
+function switchRoom(room, title, desc) {
+    const oldRoom = currentRoomTarget;
+    if (room === oldRoom) return;
+
+    currentRoomTarget = room;
+    currentRoomType = 'group';
+    peerListSection.classList.add('hidden');
+
+    activeChatTitle.textContent = title;
+    activeChatDesc.textContent = desc;
+
+    socket.emit('switch_room', {
+        oldRoom: oldRoom,
+        newRoom: currentRoomTarget,
+        username: currentUser
+    });
 }
 
 function showTypingIndicator(username) {
