@@ -130,6 +130,82 @@ io.on('connection', (socket) => {
         io.to(room).emit('new_message', message);
     });
 
+    // Request a private direct chat with another user
+    socket.on('request_direct_chat', (data) => {
+        const { oldRoom, newRoom, from, to } = data;
+        if (!oldRoom || !newRoom || !from || !to) {
+            socket.emit('direct_chat_failed', { message: 'Invalid direct chat request.' });
+            return;
+        }
+
+        const targetUser = Object.values(activeUsers).find(user => user.username === to);
+        if (!targetUser) {
+            socket.emit('direct_chat_failed', { message: 'Peer is no longer online.' });
+            return;
+        }
+        if (targetUser.id === socket.id) {
+            socket.emit('direct_chat_failed', { message: 'Cannot start a private chat with yourself.' });
+            return;
+        }
+
+        const targetSocket = io.sockets.sockets.get(targetUser.id);
+        if (!targetSocket) {
+            socket.emit('direct_chat_failed', { message: 'Peer connection not found.' });
+            return;
+        }
+
+        const targetOldRoom = targetUser.room;
+
+        socket.leave(oldRoom);
+        socket.join(newRoom);
+        if (activeUsers[socket.id]) {
+            activeUsers[socket.id].room = newRoom;
+        }
+
+        targetSocket.leave(targetOldRoom);
+        targetSocket.join(newRoom);
+        if (activeUsers[targetUser.id]) {
+            activeUsers[targetUser.id].room = newRoom;
+        }
+
+        if (!io.sockets.adapter.rooms.get(oldRoom)?.size) {
+            clearMessages(oldRoom);
+        }
+        if (!io.sockets.adapter.rooms.get(targetOldRoom)?.size) {
+            clearMessages(targetOldRoom);
+        }
+
+        broadcastActiveUsers();
+
+        const messages = loadMessages(newRoom);
+        socket.emit('direct_chat_started', {
+            room: newRoom,
+            peerName: to,
+            messages
+        });
+        targetSocket.emit('direct_chat_started', {
+            room: newRoom,
+            peerName: from,
+            messages
+        });
+
+        io.to(newRoom).emit('user_joined', {
+            username: from,
+            userCount: io.sockets.adapter.rooms.get(newRoom)?.size || 0
+        });
+
+        io.to(oldRoom).emit('user_left', {
+            username: from,
+            userCount: io.sockets.adapter.rooms.get(oldRoom)?.size || 0
+        });
+        if (targetOldRoom && targetOldRoom !== oldRoom) {
+            io.to(targetOldRoom).emit('user_left', {
+                username: to,
+                userCount: io.sockets.adapter.rooms.get(targetOldRoom)?.size || 0
+            });
+        }
+    });
+
     // Switch room
     socket.on('switch_room', (data) => {
         const { oldRoom, newRoom, username } = data;

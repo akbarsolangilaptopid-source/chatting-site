@@ -90,6 +90,32 @@ socket.on('active_users', (users) => {
     updateUserCount('private-peer', otherPeers.length);
 });
 
+socket.on('direct_chat_started', (data) => {
+    const { room, peerName, messages } = data;
+    currentRoomTarget = room;
+    currentRoomType = 'direct';
+    pendingDirectMode = false;
+    currentPeer = peerName;
+    peerListSection.classList.add('hidden');
+    messagesStream.innerHTML = '';
+
+    activeChatTitle.textContent = `🔒 Chat with ${peerName}`;
+    activeChatDesc.textContent = 'Private one-on-one conversation';
+
+    if (messages && messages.length) {
+        messages.forEach(msg => {
+            const layoutType = (msg.sender === currentUser) ? 'outgoing' : 'incoming';
+            appendMessageElement(msg.sender, msg.text, msg.timestamp, layoutType);
+        });
+    }
+
+    appendSystemMessage(`Direct chat started with ${peerName}.`);
+});
+
+socket.on('direct_chat_failed', (data) => {
+    appendSystemMessage(data.message || 'Unable to start private chat.');
+});
+
 // --- Connection Status ---
 function updateConnectionStatus(connected) {
     if (connected) {
@@ -287,20 +313,20 @@ function startDirectChat(peerName) {
     const oldRoom = currentRoomTarget;
     const newRoom = createDirectRoomId(currentUser, peerName);
     currentPeer = peerName;
-    pendingDirectMode = false;
-    currentRoomTarget = newRoom;
     currentRoomType = 'direct';
+    pendingDirectMode = false;
 
     activeChatTitle.textContent = `🔒 Chat with ${peerName}`;
     activeChatDesc.textContent = 'Private one-on-one conversation';
 
-    socket.emit('switch_room', {
+    socket.emit('request_direct_chat', {
         oldRoom: oldRoom,
-        newRoom: currentRoomTarget,
-        username: currentUser
+        newRoom: newRoom,
+        from: currentUser,
+        to: peerName
     });
 
-    appendSystemMessage(`Private chat started with ${peerName}.`);
+    appendSystemMessage(`Requesting direct chat with ${peerName}...`);
 }
 
 function createDirectRoomId(userA, userB) {
